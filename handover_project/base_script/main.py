@@ -11,10 +11,12 @@ import utils
 
 
 # initial configuration
+csv_folder = "csv_files"
 df_name_1 = "200km_25beams_sc9_padova_2026_07_05_12_1h.csv"
+file_path_1 = os.path.join(csv_folder, df_name_1)
 ########################################
 # retrive parameters
-data_frame_1 = pd.read_csv(df_name_1)
+data_frame_1 = pd.read_csv(file_path_1)
 numbers = re.findall(r'\d+', df_name_1)
 beam_size_km = int(numbers[0])
 num_beams = int(numbers[1])
