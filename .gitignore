@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+venv requirements.txt
+.DS_Store
 
 # Virtual Environments (so you don't upload your 200MB .venv)
 .venv/
@@ -24,3 +26,4 @@ ENV/
 *.jpeg
 *.pt
 plots/
+checkpoints_PPO_1000km_500UE_24h
