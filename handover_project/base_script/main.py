@@ -11,10 +11,12 @@ import utils
 
 
 # initial configuration
-df_name_1 = "200km_25beams_sc9_padova_2026_07_05_21_1h.csv"
+csv_folder = "csv_files"
+df_name_1 = "100km_81beams_sc9_padova_2026_07_05_18_1h.csv"
+file_path_1 = os.path.join(csv_folder, df_name_1)
 ########################################
 # retrive parameters
-data_frame_1 = pd.read_csv(df_name_1)
+data_frame_1 = pd.read_csv(file_path_1)
 numbers = re.findall(r'\d+', df_name_1)
 beam_size_km = int(numbers[0])
 num_beams = int(numbers[1])
@@ -24,7 +26,7 @@ day = int(numbers[5])
 minute = int(numbers[6])
 duration_h = int(numbers[7])
 ########################################
-enable_elevation_threshold = True
+enable_elevation_threshold = False
 elevation_threshold = 30
 enable_doppler_computation = False
  
@@ -34,10 +36,18 @@ mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
 servers = 1
 scenario = utils.sc9_parameters
+
+# scenario['frequency_reuse_factor'] = 3
+# scenario['bw_dl'] = 30e6
+
 pointing = True # True if the satellite is pointing (Earth-Fixed), False otherwise (Earth-Moving). This flag doesn't affect the UE antenna orientation anyway. So, if the satellite is moving, the UE antenna will always point to the satellite, but the satellite will depending on "pointing".
+enhanced_flag = False # don't take the best satellite, but a random one among the ones that are better than the current one
+
+dl_threshold = 0
+ul_threshold = 0
+elev_threshold = 10
 handover_timer = 40
 a3_event_snr_threshold = 2 # dB
-enhanced_flag = False # don't take the best satellite, but a random one among the ones that are better than the current one
 
 ho_condition_1 = ("VISIBILITY")
 sat_selection_condition_1 = "RANDOM"
