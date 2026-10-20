@@ -12,7 +12,7 @@ import utils
 
 # initial configuration
 csv_folder = "csv_files"
-df_name_1 = "100km_81beams_sc9_padova_2026_07_05_18_1h.csv"
+df_name_1 = "100km_36beams_sc9_padova_2026_07_05_18_1h.csv"
 file_path_1 = os.path.join(csv_folder, df_name_1)
 ########################################
 # retrive parameters
@@ -31,7 +31,7 @@ elevation_threshold = 30
 enable_doppler_computation = False
  
 simTime = timedelta(hours=duration_h)
-num_ues = 500
+num_ues = 100
 mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
 servers = 1
@@ -49,17 +49,17 @@ elev_threshold = 10
 handover_timer = 40
 a3_event_snr_threshold = 2 # dB
 
-ho_condition_1 = ("VISIBILITY")
-sat_selection_condition_1 = "RANDOM"
+ho_condition_1 = ("HTA", 0)
+sat_selection_condition_1 = "HTSA"
 
 # RL parameters
 w1 = 1 # capacity weight
 w2 = 1 # load weight
 w3 = 0 # delay weight
-enable_rl_algorithm =  True # if True, use RL algorithm for target satellite selection for HO
-eneable_rl_learning = True # if True, the RL agent will learn during the simulation, otherwise it will use a pre-trained model
+enable_rl_algorithm = True if sat_selection_condition_1 == "HTSA" else False
+enable_rl_learning = True # if True, the RL agent will learn during the simulation, otherwise it will use a pre-trained model
 agent_type = "PPO" # RL agent type: "PPO" or "DQL"
-rl_parameters = (w1, w2, w3, enable_rl_algorithm, eneable_rl_learning, agent_type)
+rl_parameters = (w1, w2, w3, enable_rl_algorithm, enable_rl_learning, agent_type)
 
 ####################################
 ########### ho_condition ###########
@@ -69,6 +69,8 @@ rl_parameters = (w1, w2, w3, enable_rl_algorithm, eneable_rl_learning, agent_typ
 # ("TIMER", handover_timer): if not already triggered, handover to a new satellite after handover_timer seconds
 # ("VISIBILITY"): standard approach, no input needed, handover when satellite goes out of visibility
 # ("A3", a3_event_snr_threshold, enhanced_flag): 3GPP Event-A3: monitor neighbouring cells, handover if one becomes better by a3_event_snr_threshold dB. if enhanced flag is true, select a random sat among the ons with higher SNR than the current one by a3_event_snr_threshold dB, otherwise select the best one.
+# TODO ("RANDOM", alpha): random handover trigger event with an exponential distribution with mean alpha seconds. This is used to test the RL algorithm, as it will learn to select the best satellite for handover when a random event occurs.
+# ("HTA", 0): use HTA agent for handover triggering 
 
 ###############################################
 ########### sat_selection_condition ###########
@@ -78,7 +80,7 @@ rl_parameters = (w1, w2, w3, enable_rl_algorithm, eneable_rl_learning, agent_typ
 # "MAX_VISIBILITY": the satellite with the longer visibility window from the current time instant
 # "AVL_THR": the satellite with the highest available throughput is selected as target satellite
 # "A3": the only possible sat selection when using A3 as ho condition.
-
+# "HTSA": use HTSA agent for target satellite selection for HO skipping whatever sat_selection_condition is set. 
 
 
 # parsing input parameters 
