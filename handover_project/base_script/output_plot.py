@@ -49,7 +49,9 @@ test_flag = True
 # ================================================================================================
 
 # dataframes parameters
-df_name = "200km_25beams_sc9_padova_2026_07_05_12_1h.csv"
+df_name = "100km_100beams_sc9_padova_2026_07_05_18_1h.csv"
+csv_folder = "csv_files"
+file_path_in = os.path.join(csv_folder, df_name)
 ########################################
 # retrive parameters
 numbers = re.findall(r'\d+', df_name)
@@ -100,7 +102,7 @@ if(visible_sats_over_time):
     plt.figure(figsize=(10, 5))
     index = 0
     for df_name, fname in zip(dfnames, fnames):
-        data_frame = pd.read_csv(df_name)
+        data_frame = pd.read_csv(file_path_in)
         time = simTimeStart
         end_sim_time = simTimeEnd
 
