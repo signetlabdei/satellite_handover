@@ -72,7 +72,7 @@ sc9_parameters = {
     'bw_dl' : 30e6,     # Hz
     'bw_ul' : 0.4e6,    # Hz
     'freq_dl' : 2e9,    # Hz
-    'freq_ul' : 3e9,    # Hz
+    'freq_ul' : 2e9,    # Hz
     'atm_loss' : 0.8,   # dB
     'dl_db_headroom' : 2, # dB
     'ul_db_headroom' : 2,  # dB

@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.DS_Store
 
 # Virtual Environments (so you don't upload your 200MB .venv)
 .venv/
@@ -24,3 +25,4 @@ ENV/
 *.jpeg
 *.pt
 plots/
+*.txt

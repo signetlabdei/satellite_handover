@@ -37,10 +37,10 @@ mu_intra = 1 * 1e-3
 servers = 1
 scenario = utils.sc9_parameters
 
-# scenario['frequency_reuse_factor'] = 3
-# scenario['bw_dl'] = 30e6
+# scenario['frequency_reuse_factor'] = 1
+# scenario['bw_dl'] = 2.5e6
 
-pointing = True # True if the satellite is pointing (Earth-Fixed), False otherwise (Earth-Moving). This flag doesn't affect the UE antenna orientation anyway. So, if the satellite is moving, the UE antenna will always point to the satellite, but the satellite will depending on "pointing".
+pointing = True # True if the satellite is pointing (Earth-Fixed), False otherwise (Earth-Moving). This flag doesn't affect the UE antenna orientation anyway. So, if the satellite is moving, the UE antenna will always point to the satellite, but the satellite will depending on "pointing". It works only for a one-to-one corrispondence between cell and beam (only one beam per cell). Indeed, it doesn't consider the fact that each beam should have a dedicated antenna. 
 enhanced_flag = False # don't take the best satellite, but a random one among the ones that are better than the current one
 
 dl_threshold = 0

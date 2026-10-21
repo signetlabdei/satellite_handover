@@ -87,7 +87,7 @@ def main():
     # simulation parameters
     # epoch_time = np.datetime64('2025-06-08T00:00:00')   # epoch time for position computation [y, m, d, h, m, s]
     epoch_time = np.datetime64('2026-07-05T18:00:00Z')   # epoch time for position computation [y, m, d, h, m, s]
-    simulation_duration_seconds = 3600*6                  # total simulation duration [s]
+    simulation_duration_seconds = 3600                  # total simulation duration [s]
     simulation_step_seconds = 1                         # time step for position computation [s]
     # lat_ue, lon_ue = 18.29817, -64.82818                # ue location [decimal degrees]
     # cluster locations:
@@ -96,17 +96,17 @@ def main():
     # lat_ue, lon_ue = 46.06250, 11.11497 # MUSE, Trento, IT
     # lat_ue, lon_ue = 48.14295, 11.57997 # hofgarten, moanco di baviera
     # lat_ue, lon_ue = 47.04240, 8.328983 #richard wagner museum, lucerna
-    filename = "200km_25beams_sc9_padova_2026_07_05_18_6h"
+    filename = "50km_100beams_sc9_padova_2026_07_05_18_1h"
     cluster_id = 1
     max_workers = None      # none to use all availabe cpu cores, or set to a specific number
     sc9 = True
     sc6 = False
-    cell_dim = 5
+    cell_dim = 10
 
  # ====================================================================================== #
 
     if sc9:
-        beam_footprint_m = 200_000  # beam diameter [m]
+        beam_footprint_m = 50_000  # beam diameter [m]
     elif sc6:
         beam_footprint_m = 20_000  # beam diameter [m]
     else:
