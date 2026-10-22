@@ -502,18 +502,33 @@ def get_noisy_snr(frame, target_time, satellite_name, mini_cluster_position, par
 def get_visibility_time(sat_name, target_time, df):
     """
     Returns the remaining visibility time of a given satellite starting from a given time instant.
+    
     Args:
-        frame: the dataframe containing the constellation information over time
-        time: current simulation time
-        satellite_name: name of the satellite we want to compute the snr
+        sat_name (str): Name of the satellite.
+        target_time (datetime or str): Current simulation time.
+        df (pd.DataFrame): The dataframe containing constellation information over time.
+        
     Returns:
-        visibility_time: remaining visibility time of the satellite
+        float: Remaining visibility time of the satellite (0.0 if not visible/found).
     """
-    vis_time = 0
+    # 1. PERFORMANCE FIX: Only convert the 'time' column if it isn't already a datetime object.
+    # Running pd.to_datetime on an entire dataframe on every function call will severely slow down your simulation.
+    if not pd.api.types.is_datetime64_any_dtype(df['time']):
+        df['time'] = pd.to_datetime(df['time'])
+        
+    # 2. MATCHING FIX: Ensure target_time is also a datetime object so the `==` comparison doesn't fail
+    if isinstance(target_time, str):
+        target_time = pd.to_datetime(target_time)
 
-    # Convert the entire 'time' column from strings to datetime objects
-    df['time'] = pd.to_datetime(df['time'])
-    vis_time = df[(df['sat_name'] == sat_name) & (df['time'] == target_time)]['occurrence_countdown'].iloc[0]
+    # Filter the dataframe for the specific satellite and time
+    filtered_data = df[(df['sat_name'] == sat_name) & (df['time'] == target_time)]['occurrence_countdown']
+
+    # 3. SAFETY FIX: Check if any matching rows exist to avoid the IndexError
+    if not filtered_data.empty:
+        # Cast to standard python float to avoid numpy datatype conflicts downstream
+        vis_time = float(filtered_data.iloc[0])
+    else:
+        vis_time = 0.0
 
     return vis_time
 

@@ -31,7 +31,7 @@ elevation_threshold = 30
 enable_doppler_computation = False
  
 simTime = timedelta(hours=duration_h)
-num_ues = 100
+num_ues = 500
 mu_inter = 30 * 1e-3
 mu_intra = 1 * 1e-3 
 servers = 1
@@ -50,14 +50,14 @@ handover_timer = 40
 a3_event_snr_threshold = 2 # dB
 
 ho_condition_1 = ("HTA", 0)
-sat_selection_condition_1 = "HTSA"
+sat_selection_condition_1 = "MAX_ELEVATION" 
 
 # RL parameters
 w1 = 1 # capacity weight
 w2 = 1 # load weight
 w3 = 0 # delay weight
 enable_rl_algorithm = True if sat_selection_condition_1 == "HTSA" else False
-enable_rl_learning = True # if True, the RL agent will learn during the simulation, otherwise it will use a pre-trained model
+enable_rl_learning = False # if True, the RL agent will learn during the simulation, otherwise it will use a pre-trained model
 agent_type = "PPO" # RL agent type: "PPO" or "DQL"
 enable_hta = True if ho_condition_1[0] == "HTA" else False
 enable_hta_learning = True # if True, the HTA agent will learn during the simulation, otherwise it will use a pre-trained model

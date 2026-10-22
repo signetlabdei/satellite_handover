@@ -262,13 +262,12 @@ class Cluster:
                         ue.inter_handover_flag = True
                 elif(event == "HTA"):
                     t_lho = 0 # time since last handover
-                    t_vis = 0 # remaining time of visibility of the current satellite
+                    t_vis = utils.get_visibility_time(curr_sat.name, round_time, curr_time_df) # remaining time of visibility of the current satellite
                     snr = -100 # current SNR of the UE
                     num_ues = 0 # number of UEs connected to the same beam of the same satellite as the current UE
-                    if(curr_sat is not None):
+                    if(curr_sat is not None and t_vis > 0):
                         t_lho = round_time - ue.handover_tracker[-1]['arrival_time'] if ue.handover_tracker else timedelta(seconds=0)
                         t_lho = t_lho.total_seconds() 
-                        t_vis = utils.get_visibility_time(curr_sat.name, round_time, curr_time_df)
                         elevation_angle_deg = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
                         snr, _ = utils.get_noisy_snr(self.df_satellites_positions, round_time, curr_sat.name, mini_cluster.position, self.scenario, elevation_angle_deg, self.pointing)
                         num_ues = service_sats[curr_sat.name].connected_ues[ue.connected_to_beam]
@@ -479,16 +478,16 @@ class Cluster:
                 self.rl_agent.rl_rewards(rewards)
 
         # RL rewards computation for HTA
-        if(self.enable_hta == "HTA"):
+        if(self.enable_hta):
             rewards = []
             for mini_cluster in self.list_beams:
                 for ue in mini_cluster.list_ues:
-                    ue_id = user.id
+                    ue_id = ue.id
                     if ue.connect_to_satellite is None:
                         rewards.append((ue_id, 0))
                         continue
-                    current_sat_name = ue.connect_to_satellite.name
-                    current_beam_index = ue.connect_to_beam
+                    current_sat_name = ue.connected_to.name
+                    current_beam_index = ue.connected_to_beam
                     current_sat = service_sats[current_sat_name]
 
                     elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
@@ -500,10 +499,10 @@ class Cluster:
                     equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
                     equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
                     dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
-                    if(user.remaining_handover_execution_time >= 1000):
+                    if(ue.remaining_handover_execution_time >= 1000):
                         dl_ue_throughput = 0
                         ul_ue_throughput = 0
-                    elif(user.remaining_handover_execution_time > 0):
+                    elif(ue.remaining_handover_execution_time > 0):
                         dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
                         ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
                     dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
