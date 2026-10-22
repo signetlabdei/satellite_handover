@@ -386,7 +386,8 @@ class DDQL(object):
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(self.__device)
-class PPOAgent:
+
+class HTSAPPOAgent:
     def __init__(self):
         K_epochs = 10              
         eps_clip = 0.2            
@@ -446,8 +447,8 @@ class PPOAgent:
             'reward': mean(self.rewards),
         }])
                 
-        write_header = not os.path.exists('agent_log.csv')
-        log.to_csv('agent_log.csv', index=False, mode='a', header=write_header)
+        write_header = not os.path.exists('HTSA_agent_log.csv')
+        log.to_csv('HTSA_agent_log.csv', index=False, mode='a', header=write_header)
 
         self.actions = []
         self.rewards = []
@@ -455,10 +456,10 @@ class PPOAgent:
         
         return
     
-    def save_model(self, path = "checkpoints/agent.pt"):
+    def save_model(self, path = "checkpoints/HTSA_agent.pt"):
         self.ppo.save(path)
 
-    def load_model(self, path = "checkpoints/agent.pt"):
+    def load_model(self, path = "checkpoints/HTSA_agent.pt"):
         if not os.path.isfile(path):
             return None
         self.ppo.load(path)
@@ -467,9 +468,74 @@ class PPOAgent:
         self.learning_flag = flag
 
 
+class HTAPPOAgent:
+    def __init__(self):
+        K_epochs = 10              
+        eps_clip = 0.2            
+        gamma = 0.95                
+        lr_actor = 0.0001 
+        lr_critic = 0.0001
+        hidden_neurons = 64
+        
+        state_dim = 4
+        action_dim = 2
+        self.ppo = PPO(state_dim, action_dim, hidden_neurons, lr_actor, lr_critic, gamma, K_epochs, eps_clip)
+        self.counter = 1
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.learning_flag = True
+
+    def rl_algorithm_selection(self, t_lho, t_vis, snr, num_ues):
+
+        states = [t_lho, t_vis, snr, num_ues]
+        
+        states = np.asarray(states)
+        self.states.append(states)
+        action = self.ppo.select_action(states)[0]
+        self.actions.append(action)
+        
+        return action
+        
+
+    def rl_rewards(self, rewards):
+        for reward in rewards:
+            self.ppo.buffer.rewards.append(reward[1])
+            self.ppo.buffer.is_terminals.append(False)
+            self.rewards.append(reward[1])
+
+        if(self.learning_flag):
+            if self.ppo.learning_steps and (self.ppo.learning_steps >= self.counter*self.ppo.update_timestep):
+                self.ppo.update()
+                self.counter += 1
+
+        log = pd.DataFrame([{
+            'actions': self.actions,
+            'reward': mean(self.rewards),
+        }])
+                
+        write_header = not os.path.exists('HTA_agent_log.csv')
+        log.to_csv('HTA_agent_log.csv', index=False, mode='a', header=write_header)
+
+        self.actions = []
+        self.rewards = []
+
+        
+        return
+    
+    def save_model(self, path = "checkpoints/HTA_agent.pt"):
+        self.ppo.save(path)
+
+    def load_model(self, path = "checkpoints/HTA_agent.pt"):
+        if not os.path.isfile(path):
+            return None
+        self.ppo.load(path)
+
+    def set_learning(self, flag):
+        self.learning_flag = flag
 
 
-class DDQLAgent():
+class HTSADDQLAgent():
     """
     class DQLAgent
     It implements the Double Q Learning algorithm
@@ -623,8 +689,8 @@ class DDQLAgent():
             'reward': mean(self.rewards),
         }])
                 
-        write_header = not os.path.exists('agent_log.csv')
-        log.to_csv('agent_log.csv', index=False, mode='a', header=write_header)
+        write_header = not os.path.exists('HTSA_agent_log.csv')
+        log.to_csv('HTSA_agent_log.csv', index=False, mode='a', header=write_header)
 
         self.actions = []
         self.rewards = []
@@ -632,10 +698,172 @@ class DDQLAgent():
         
         return
     
-    def save_model(self, path = "checkpoints/agent.pt"):
+    def save_model(self, path = "checkpoints/HTSA_agent.pt"):
         self.__ddql.save(path)
 
-    def load_model(self, path = "checkpoints/agent.pt"):
+    def load_model(self, path = "checkpoints/HTSA_agent.pt"):
+        if not os.path.isfile(path):
+            return None
+        self.__ddql.load(path)
+
+    def set_learning(self, flag):
+        self.learning_flag = flag
+
+
+class HTADDQLAgent():
+    """
+    class DQLAgent
+    It implements the Double Q Learning algorithm
+    """
+
+    def __init__(self,nn_params = None,
+                 ):
+        state_dim = 4
+        action_dim = 2
+        gamma = 0.95
+        batch_size = 64
+        target_replace = 5000
+        memory_capacity = 100000
+        learning_rate = 0.0001
+        eps = 0.01
+        weight_decay = 0.0001
+
+        self._state_dim = state_dim
+        self._action_dim = action_dim
+        primary_net = LinearNeuralNetwork(state_dim, action_dim)
+        target_net = LinearNeuralNetwork(state_dim, action_dim)
+        target_net.load_state_dict(primary_net.state_dict())
+        optimizer = torch.optim.Adam(primary_net.parameters(),
+                                     lr=learning_rate, eps=eps, weight_decay=weight_decay)
+
+        if nn_params is not None:
+            primary_net.load_state_dict(nn_params)
+            target_net.load_state_dict(nn_params)
+
+        self.__ddql = DDQL(primary_net, target_net, optimizer, gamma, batch_size, target_replace, memory_capacity)
+
+        self._states = []
+        self._actions = []
+        self._rewards = []
+
+        self.actions = []
+        self.rewards = []
+
+        self.learning_flag = True
+
+    def get_epsilon(self, step):
+        EPS_MIN = 0.01
+        EPS_MAX = 1
+        LAMBDA = 0.001
+        return EPS_MIN + math.exp(-LAMBDA*step) * (EPS_MAX-EPS_MIN)
+
+    def get_action(self, state):
+        """
+        Choose an action according to the policy
+        """
+        self.__ddql.get_primary_net().eval()
+        state_tensor = torch.tensor(state, dtype=torch.float32).to(self.__ddql.get_device())
+        state_tensor = state_tensor.unsqueeze(0)
+        with torch.no_grad():
+            q_values = self.__ddql.get_primary_net().forward(state_tensor)
+
+        action_chosen = torch.argmax(q_values).item()
+        action_performed = action_chosen
+        if random.random() < self.get_epsilon(self.__ddql._step):
+            action_performed = random.randint(0, self._action_dim - 1)
+
+        self._actions.append(action_performed)
+        self.__ddql._step += 1
+        return action_performed
+
+    def learn(self):
+        """
+        Learn from the experience
+        """
+        loss = None
+        # need at least two recorded states to have both s_t and s_{t+1}
+        while len(self._states) >= 2 and self._actions and self._rewards:
+            s_t = self._states.pop(0)
+            a_t = self._actions.pop(0)
+            r_t = self._rewards.pop(0)
+            s_t1 = self._states[0]  
+
+            self.store_transition(s_t, a_t, r_t, s_t1)
+
+            if self.__ddql.ready():
+                self.__ddql.get_primary_net().train()
+                loss = self.__ddql.step()
+
+        return loss
+    
+    def reset(self):
+        """Delete all temporary stored data
+        """
+        self._states = []
+        self._actions = []
+        self._rewards = []
+
+    def observe_state(self, state):
+        """Observe the current state
+
+        Args:
+            state (State): state of the user
+        """
+        self._states.append(state)
+
+    def observe_reward(self, reward):
+        """Observe the reward
+
+        Args:
+            reward (float): reward received
+        """
+        self._rewards.append(reward)
+
+
+    def store_transition(self, state, action, reward, new_state):
+        """
+        Insert a new transition (state, action, reward, new state) in the memory replay
+        """
+        self.__ddql.store_transition(state, action, reward, new_state)
+
+    
+    def rl_algorithm_selection(self, t_lho, t_vis, snr, num_ues):
+        states = [t_lho, t_vis, snr, num_ues]
+        
+        states = np.asarray(states)
+        self.observe_state(states)
+        action = self.get_action(states)
+        self.actions.append(action)
+        
+        return action
+        
+
+    def rl_rewards(self, rewards):
+        for reward in rewards:
+            self.observe_reward(reward[1])
+            self.rewards.append(reward[1])  
+
+        if(self.learning_flag):
+            self.learn()
+
+        log = pd.DataFrame([{
+            'actions': self.actions,
+            'reward': mean(self.rewards),
+        }])
+                
+        write_header = not os.path.exists('HTA_agent_log.csv')
+        log.to_csv('HTA_agent_log.csv', index=False, mode='a', header=write_header)
+
+        self.actions = []
+        self.rewards = []
+
+        
+        return
+    
+    def save_model(self, path = "checkpoints/HTA_agent.pt"):
+        self.__ddql.save(path)
+
+    def load_model(self, path = "checkpoints/HTA_agent.pt"):
         if not os.path.isfile(path):
             return None
         self.__ddql.load(path)

@@ -31,6 +31,9 @@ class Cluster:
         self.enable_rl_algorithm = rl_parameters[3]
         self.enable_rl_learning = rl_parameters[4]
         self.agent_type = rl_parameters[5]
+        self.enable_hta = rl_parameters[6]
+        self.enable_hta_learning = rl_parameters[7]
+        self.hta_type = rl_parameters[8]
 
         # beams computation
         self.positions = self.calculate_beams_grid(self.position[0], self.position[1], self.beam_size_km, self.num_beams)
@@ -38,13 +41,23 @@ class Cluster:
 
         if(self.enable_rl_algorithm):
             if(self.agent_type == "PPO"):
-                self.rl_agent = rl_agent.PPOAgent() if self.enable_rl_algorithm else None
+                self.rl_agent = rl_agent.HTSAPPOAgent() if self.enable_rl_algorithm else None
             elif(self.agent_type == "DQL"):
-                self.rl_agent = rl_agent.DDQLAgent() if self.enable_rl_algorithm else None
+                self.rl_agent = rl_agent.HTSADDQLAgent() if self.enable_rl_algorithm else None
             else:
                 raise ValueError("Invalid agent type. Choose either 'PPO' or 'DQL'.")
             self.rl_agent = self.rl_agent.load_model() if self.rl_agent.load_model() is not None else self.rl_agent
             self.rl_agent.set_learning(self.enable_rl_learning)
+
+        if(self.enable_hta):
+            if(self.hta_type == "PPO"):
+                self.hta_agent = rl_agent.HTAPPOAgent() if self.enable_hta else None
+            elif(self.hta_type == "DQL"):
+                self.hta_agent = rl_agent.HTADDQLAgent() if self.enable_hta else None
+            else:
+                raise ValueError("Invalid agent type. Choose either 'PPO' or 'DQL'.")
+            self.hta_agent = self.hta_agent.load_model() if self.hta_agent.load_model() is not None else self.hta_agent
+            self.hta_agent.set_learning(self.enable_hta_learning)
 
     # in order to compute the position of the beams, we assume that they are arranged in a grid centered on the cluster position, 
     # and that the distance between adjacent beams is equal to the beam size. We then compute the latitude and longitude of each 
@@ -258,7 +271,10 @@ class Cluster:
                         elevation_angle_deg = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
                         snr, _ = utils.get_noisy_snr(self.df_satellites_positions, round_time, curr_sat.name, mini_cluster.position, self.scenario, elevation_angle_deg, self.pointing)
                         num_ues = service_sats[curr_sat.name].connected_ues[ue.connected_to_beam]
-                    # TODO ue.inter_handover_flag = hta_agent(t_lho, t_vis, snr, num_ues)
+                    
+                        ue.inter_handover_flag = self.hta_agent.rl_algorithm_selection(t_lho, t_vis, snr, num_ues)
+                    else:
+                        ue.inter_handover_flag = True
                 elif(event == "A3"):
                     snr_difference_threshold = ho_condition[1]
                     enhanced_flag = ho_condition[2]
@@ -462,42 +478,41 @@ class Cluster:
                 self.rl_agent.rl_rewards(rewards)
 
         # RL rewards computation for HTA
-        if(ho_condition[0] == "HTA"):
+        if(self.enable_hta == "HTA"):
             rewards = []
             for mini_cluster in self.list_beams:
                 for ue in mini_cluster.list_ues:
-                    if(ue.inter_handover_flag == True):
-                        ue_id = user.id
-                        if ue.connect_to_satellite is None:
-                            rewards.append(0)
-                            continue
-                        current_sat_name = ue.connect_to_satellite.name
-                        current_beam_index = ue.connect_to_beam
-                        current_sat = service_sats[current_sat_name]
+                    ue_id = user.id
+                    if ue.connect_to_satellite is None:
+                        rewards.append((ue_id, 0))
+                        continue
+                    current_sat_name = ue.connect_to_satellite.name
+                    current_beam_index = ue.connect_to_beam
+                    current_sat = service_sats[current_sat_name]
 
-                        elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
-                        max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt), self.scenario, elevation_angle_deg, self.pointing)
-                        load = current_sat.connected_ues[current_beam_index]
-                        dl_ue_throughput = max_dl_thr / load
-                        ul_ue_throughput = max_ul_thr / load
-                        equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
-                        equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
-                        equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
-                        dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
-                        if(user.remaining_handover_execution_time >= 1000):
-                            dl_ue_throughput = 0
-                            ul_ue_throughput = 0
-                        elif(user.remaining_handover_execution_time > 0):
-                            dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
-                            ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
-                        dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
-                        ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
+                    elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
+                    max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt), self.scenario, elevation_angle_deg, self.pointing)
+                    load = current_sat.connected_ues[current_beam_index]
+                    dl_ue_throughput = max_dl_thr / load
+                    ul_ue_throughput = max_ul_thr / load
+                    equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
+                    equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
+                    equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
+                    dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
+                    if(user.remaining_handover_execution_time >= 1000):
+                        dl_ue_throughput = 0
+                        ul_ue_throughput = 0
+                    elif(user.remaining_handover_execution_time > 0):
+                        dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                        ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                    dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
+                    ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
 
-                        reward = min(1,(self.w1 * dl_ue_throughput)/40)
+                    reward = min(1,(self.w1 * dl_ue_throughput)/40)
 
-                        rewards.append((ue_id, reward))
+                    rewards.append((ue_id, reward))
             if rewards:
-                self.rl_agent.rl_rewards(rewards)
+                self.hta_agent.rl_rewards(rewards)
 
         self.save_instant_throughput(time)
 
