@@ -408,7 +408,7 @@ class Cluster:
 
                 ################################################
 
-        # RL rewards computation
+        # RL rewards computation for HTSA
         if(self.enable_rl_algorithm):
             rewards = []
             for user, sat_info in ho_ues:
@@ -458,6 +458,44 @@ class Cluster:
                 reward = min(1,(self.w1 * dl_ue_throughput)/40)
 
                 rewards.append((ue_id, reward))
+            if rewards:
+                self.rl_agent.rl_rewards(rewards)
+
+        # RL rewards computation for HTA
+        if(ho_condition[0] == "HTA"):
+            rewards = []
+            for mini_cluster in self.list_beams:
+                for ue in mini_cluster.list_ues:
+                    if(ue.inter_handover_flag == True):
+                        ue_id = user.id
+                        if ue.connect_to_satellite is None:
+                            rewards.append(0)
+                            continue
+                        current_sat_name = ue.connect_to_satellite.name
+                        current_beam_index = ue.connect_to_beam
+                        current_sat = service_sats[current_sat_name]
+
+                        elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
+                        max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt), self.scenario, elevation_angle_deg, self.pointing)
+                        load = current_sat.connected_ues[current_beam_index]
+                        dl_ue_throughput = max_dl_thr / load
+                        ul_ue_throughput = max_ul_thr / load
+                        equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
+                        equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
+                        equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
+                        dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
+                        if(user.remaining_handover_execution_time >= 1000):
+                            dl_ue_throughput = 0
+                            ul_ue_throughput = 0
+                        elif(user.remaining_handover_execution_time > 0):
+                            dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                            ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                        dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
+                        ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
+
+                        reward = min(1,(self.w1 * dl_ue_throughput)/40)
+
+                        rewards.append((ue_id, reward))
             if rewards:
                 self.rl_agent.rl_rewards(rewards)
 
