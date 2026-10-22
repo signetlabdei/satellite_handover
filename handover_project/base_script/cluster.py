@@ -267,6 +267,7 @@ class Cluster:
                     num_ues = 0 # number of UEs connected to the same beam of the same satellite as the current UE
                     if(curr_sat is not None):
                         t_lho = round_time - ue.handover_tracker[-1]['arrival_time'] if ue.handover_tracker else timedelta(seconds=0)
+                        t_lho = t_lho.total_seconds() 
                         t_vis = utils.get_visibility_time(curr_sat.name, round_time, curr_time_df)
                         elevation_angle_deg = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
                         snr, _ = utils.get_noisy_snr(self.df_satellites_positions, round_time, curr_sat.name, mini_cluster.position, self.scenario, elevation_angle_deg, self.pointing)

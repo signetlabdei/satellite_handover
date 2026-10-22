@@ -492,7 +492,7 @@ class HTAPPOAgent:
         
         states = np.asarray(states)
         self.states.append(states)
-        action = self.ppo.select_action(states)[0]
+        action = self.ppo.select_action(states)
         self.actions.append(action)
         
         return action
