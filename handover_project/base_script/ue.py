@@ -16,6 +16,7 @@ class Ue:
         self.inter_handover_flag = False
         self.remaining_handover_execution_time = 0 # [ms] save the ho duration at this time instant if the ue has performed ho
         self.thr_tracker = []
+        self.t_lho = 0
 
     
     def connect_to_satellite(self, satellite, beam_index):

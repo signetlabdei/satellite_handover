@@ -261,18 +261,23 @@ class Cluster:
                     if(sat_elev < elev_threshold):
                         ue.inter_handover_flag = True
                 elif(event == "HTA"):
-                    t_lho = 0 # time since last handover
-                    t_vis = utils.get_visibility_time(curr_sat.name, round_time, curr_time_df) # remaining time of visibility of the current satellite
                     snr = -100 # current SNR of the UE
                     num_ues = 0 # number of UEs connected to the same beam of the same satellite as the current UE
-                    if(curr_sat is not None and t_vis > 0):
-                        t_lho = round_time - ue.handover_tracker[-1]['arrival_time'] if ue.handover_tracker else timedelta(seconds=0)
-                        t_lho = t_lho.total_seconds() 
-                        elevation_angle_deg = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
-                        snr, _ = utils.get_noisy_snr(self.df_satellites_positions, round_time, curr_sat.name, mini_cluster.position, self.scenario, elevation_angle_deg, self.pointing)
-                        num_ues = service_sats[curr_sat.name].connected_ues[ue.connected_to_beam]
-                    
-                        ue.inter_handover_flag = self.hta_agent.rl_algorithm_selection(t_lho, t_vis, snr, num_ues)
+                    t_lho = round_time - ue.handover_tracker[-1]['arrival_time'] if ue.handover_tracker else timedelta(seconds=0) # time since last handover
+                    t_lho = t_lho.total_seconds() 
+                    ue.t_lho = t_lho
+                    if(curr_sat is not None):
+                        t_vis = utils.get_visibility_time(curr_sat.name, round_time, curr_time_df) # remaining time of visibility of the current satellite
+                        
+                        if(t_vis > 0):
+                            
+                            elevation_angle_deg = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
+                            snr, _ = utils.get_noisy_snr(self.df_satellites_positions, round_time, curr_sat.name, mini_cluster.position, self.scenario, elevation_angle_deg, self.pointing)
+                            num_ues = service_sats[curr_sat.name].connected_ues[ue.connected_to_beam]
+                        
+                            ue.inter_handover_flag = self.hta_agent.rl_algorithm_selection(t_lho, t_vis, snr, num_ues)
+                        else:
+                            ue.inter_handover_flag = True
                     else:
                         ue.inter_handover_flag = True
                 elif(event == "A3"):
@@ -483,32 +488,47 @@ class Cluster:
             for mini_cluster in self.list_beams:
                 for ue in mini_cluster.list_ues:
                     ue_id = ue.id
-                    if ue.connect_to_satellite is None:
+                    if ue.connected_to is None:
                         rewards.append((ue_id, 0))
                         continue
                     current_sat_name = ue.connected_to.name
                     current_beam_index = ue.connected_to_beam
                     current_sat = service_sats[current_sat_name]
 
-                    elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
-                    max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt), self.scenario, elevation_angle_deg, self.pointing)
-                    load = current_sat.connected_ues[current_beam_index]
-                    dl_ue_throughput = max_dl_thr / load
-                    ul_ue_throughput = max_ul_thr / load
-                    equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
-                    equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
-                    equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
-                    dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
-                    if(ue.remaining_handover_execution_time >= 1000):
-                        dl_ue_throughput = 0
-                        ul_ue_throughput = 0
-                    elif(ue.remaining_handover_execution_time > 0):
-                        dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
-                        ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
-                    dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
-                    ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
+                    # elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
+                    # max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt), self.scenario, elevation_angle_deg, self.pointing)
+                    # load = current_sat.connected_ues[current_beam_index]
+                    # dl_ue_throughput = max_dl_thr / load
+                    # ul_ue_throughput = max_ul_thr / load
+                    # equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
+                    # equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
+                    # equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
+                    # dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
+                    # if(ue.remaining_handover_execution_time >= 1000):
+                    #     dl_ue_throughput = 0
+                    #     ul_ue_throughput = 0
+                    # elif(ue.remaining_handover_execution_time > 0):
+                    #     dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                    #     ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                    # dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
+                    # ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
+                    k = 0.25
+                    r_max = 4
+                    c_ho = 1        
 
-                    reward = min(1,(self.w1 * dl_ue_throughput)/40)
+                    if(len(ue.thr_tracker) > 0):
+                        prev_throughput = ue.thr_tracker[-1]["dl_thr"]
+                    else: prev_throughput = r_max
+
+                    
+                    v_t = (prev_throughput - k*r_max)/(r_max*(1-k))
+
+                    if(ue.inter_handover_flag):
+                        # true: we just did the handover
+                        reward = 1 - c_ho/ue.t_lho - max(0, v_t)
+                    else:
+                        # false: wer did no handover
+                        reward = 1 + min(0, v_t)
 
                     rewards.append((ue_id, reward))
             if rewards:
