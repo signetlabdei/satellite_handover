@@ -48,7 +48,7 @@ test_flag = True
 # ================================================================================================
 
 # dataframes parameters
-df_name = "100km_81beams_sc9_padova_2026_07_05_18_1h.csv"
+df_name = "50km_25beams_sc9_padova_2026_07_05_18_1h.csv"
 csv_folder = "csv_files"
 file_path_in = os.path.join(csv_folder, df_name)
 ########################################

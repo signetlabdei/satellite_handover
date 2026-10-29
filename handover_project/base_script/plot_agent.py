@@ -13,7 +13,7 @@ df["learning_step"] = df["learning_step"]//50
 
 plt.figure(figsize=(12, 6))
 sns.lineplot(df, x='learning_step', y='reward')
-plt.ylim(0,1)
-plt.yticks(np.arange(0, 1.1, 0.1))
+#plt.ylim(0,1)
+#plt.yticks(np.arange(0, 1.1, 0.1))
 plt.grid()
 plt.savefig('reward.png', dpi=300)
