@@ -96,15 +96,17 @@ class Cluster:
 
     # only at the beginning of the simulation, we attech every UEs of all the mini-cluster to a beam 
     # of a random satellite within the visibility.
-    def initial_connection_phase(self, time, service_sats, handover_timer = 0):
+    def initial_connection_phase(self, time, service_sats, handover_timer = 0, ho_condition = None):
         """
         This function handles the initial connection phase for the UEs in the mini-cluster.
-        It should connect each UE to a random visible satellite. If no available satellite is visible, the UE will be 
+        It should connect each UE to a random visible satellite. If no available satellite is visible, the UE will be
         considered out of service until a satellite becomes visible.
         Inputs:
             - time: the current time of the simulation, used to determine the visible satellites at this time.
             - service_sats: a dictionary that will be updated with the satellites that are serving the UEs of the cluster.
-        
+            - handover_timer: upper bound of the random initial countdown for the TIMER handover condition.
+            - ho_condition: the handover condition tuple; if it is RANDOM, the initial countdown of each UE is drawn from the exponential distribution.
+
         """
         # Find all visible satellites at the given time
         # round to the closest sec
@@ -138,9 +140,31 @@ class Cluster:
         
         for index, mini_cluster in enumerate(self.list_beams):
             mini_cluster.initial_connection_phase(visible_sats_for_each_minicluster[index], time, service_sats, handover_timer)
-                
+
+        # with the RANDOM handover condition, the first trigger is drawn from the same exponential distribution
+        # (thanks to the memoryless property, there is no need for a random offset as in the TIMER case)
+        if(ho_condition is not None and ho_condition[0] == "RANDOM"):
+            for mini_cluster in self.list_beams:
+                for ue in mini_cluster.list_ues:
+                    self.reset_handover_countdown(ue, ho_condition)
+
         return service_sats
-    
+
+
+    def reset_handover_countdown(self, ue, ho_condition):
+        """
+        Reset the per-UE countdown (ue.time_to_next_handover) used by the TIMER and RANDOM handover conditions.
+            - TIMER: the next handover is triggered after exactly ho_condition[1] seconds.
+            - RANDOM: the next handover is triggered after an exponentially distributed time with mean ho_condition[1] seconds,
+              rounded up to the next time slot (1 s), so as to avoid a coin flip at every time slot.
+        The countdown is decreased by 1 every second in the monitor function and the handover fires when it reaches 0.
+        """
+        if(ho_condition[0] == "TIMER"):
+            ue.time_to_next_handover = ho_condition[1] - 1
+        elif(ho_condition[0] == "RANDOM"):
+            alpha = ho_condition[1]
+            ue.time_to_next_handover = max(1, math.ceil(random.expovariate(1 / alpha))) - 1
+
 
 
     def monitor(self, time, service_sats, ho_condition, sat_selection_condition):
@@ -250,7 +274,7 @@ class Cluster:
                             ue.inter_handover_flag = True
                     else:
                         ue.inter_handover_flag = True
-                elif(event == "TIMER"):
+                elif(event == "TIMER" or event == "RANDOM"): # same countdown, they differ only in how it is reset (see reset_handover_countdown)
                     if(ue.time_to_next_handover <= 0):
                         ue.inter_handover_flag = True
                     else:
@@ -376,8 +400,7 @@ class Cluster:
                                 sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
                                 service_sats[selected_sat_name] = sat
                             next_sat = service_sats[selected_sat_name]
-                            if(ho_condition[0] == "TIMER"):
-                                ue.time_to_next_handover = ho_condition[1] -1 # reset the time to next handover in case of fixed timer handover condition
+                            self.reset_handover_countdown(ue, ho_condition) # reset the time to next handover in case of TIMER or RANDOM handover condition
                         if(ue.connected_to is not None and (ue.connected_to.name == selected_sat_name)):
                             ue.intra_handover(time, next_sat, next_beam_index)
                         else:
@@ -416,8 +439,7 @@ class Cluster:
                                 sat = Satellite(selected_sat_name, self.sat_servers, self.sat_mu_inter, self.sat_mu_intra, self.num_beams)
                                 service_sats[selected_sat_name] = sat
                             next_sat = service_sats[selected_sat_name]
-                            if(ho_condition[0] == "TIMER"):
-                                ue.time_to_next_handover = ho_condition[1] -1 # reset the time to next handover in case of fixed timer handover condition
+                            self.reset_handover_countdown(ue, ho_condition) # reset the time to next handover in case of TIMER or RANDOM handover condition
                         # if there is at least one, select the less busy satellite which could guarantee the higer thorughput
                         # handover to the selected sat (if no one, go out of service)
                         ue.inter_handover(time, next_sat, next_beam_index)
@@ -495,40 +517,65 @@ class Cluster:
                     current_beam_index = ue.connected_to_beam
                     current_sat = service_sats[current_sat_name]
 
-                    # elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
-                    # max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt), self.scenario, elevation_angle_deg, self.pointing)
-                    # load = current_sat.connected_ues[current_beam_index]
-                    # dl_ue_throughput = max_dl_thr / load
-                    # ul_ue_throughput = max_ul_thr / load
-                    # equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
-                    # equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
-                    # equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
-                    # dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
-                    # if(ue.remaining_handover_execution_time >= 1000):
-                    #     dl_ue_throughput = 0
-                    #     ul_ue_throughput = 0
-                    # elif(ue.remaining_handover_execution_time > 0):
-                    #     dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
-                    #     ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
-                    # dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
-                    # ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
+                    elevation_angle_deg = utils.get_elevation(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt))
+                    max_dl_thr, max_ul_thr = utils.get_max_beam_throughput(self.df_satellites_positions, time, current_sat_name, (ue.lat, ue.lon, ue.alt), self.scenario, elevation_angle_deg, self.pointing)
+                    load = current_sat.connected_ues[current_beam_index]
+                    dl_ue_throughput = max_dl_thr / load
+                    ul_ue_throughput = max_ul_thr / load
+                    equivalent_snr_dl_db, equivalent_snr_ul_db = utils.reverse_snr_from_thr(dl_ue_throughput, ul_ue_throughput, self.scenario)
+                    equivalent_snr_dl_db -= self.scenario['dl_db_headroom']
+                    equivalent_snr_ul_db -= self.scenario['ul_db_headroom']
+                    dl_ue_throughput, ul_ue_throughput = utils.compute_shannon_from_snr(equivalent_snr_dl_db, equivalent_snr_ul_db, self.scenario)
+                    if(ue.remaining_handover_execution_time >= 1000):
+                        dl_ue_throughput = 0
+                        ul_ue_throughput = 0
+                    elif(ue.remaining_handover_execution_time > 0):
+                        dl_ue_throughput = dl_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                        ul_ue_throughput = ul_ue_throughput * (1 - ue.remaining_handover_execution_time/1000)
+                    dl_ue_throughput *= (1 - self.scenario['3gpp_overhead_dl']) 
+                    ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
+
+
+
                     k = 0.25
                     r_max = 4
-                    c_ho = 1        
+                    c_ho = 1
+                    thr_next = dl_ue_throughput        
 
-                    if(len(ue.thr_tracker) > 0):
-                        prev_throughput = ue.thr_tracker[-1]["dl_thr"]
-                    else: prev_throughput = r_max
+                    # V1
+                    # if(len(ue.thr_tracker) > 0):
+                    #     prev_throughput = ue.thr_tracker[-1]["dl_thr"]
+                    # else: prev_throughput = r_max
 
                     
-                    v_t = (prev_throughput - k*r_max)/(r_max*(1-k))
+                    # v_t = (prev_throughput - k*r_max)/(r_max*(1-k))
 
-                    if(ue.inter_handover_flag):
-                        # true: we just did the handover
-                        reward = 1 - c_ho/ue.t_lho - max(0, v_t)
-                    else:
-                        # false: wer did no handover
-                        reward = 1 + min(0, v_t)
+                    # if(ue.inter_handover_flag):
+                    #     # true: we just did the handover
+                    #     reward = max(0, max(0, v_t) - 1/t_lho)   
+                    # else:
+                    #     # false: wer did no handover
+                    #     reward = max(0, v_t)
+
+
+
+
+                    # V2
+                    # throughput realised in slot t+1, already degraded by Eq. 1 / queueing
+
+                    c_ho = 0.2
+                    lam_early = 1
+                    T_min = 10 # This is the Timer 10s baseline, which the HTA should be able to match or beat. Anything shorter than that is waste, since the Visibility strategy has a median service time of ~20 s. Sweep {5, 10, 15, 20}. Going above ~20 s starts to forbid handovers that are legitimately useful. You could later replace it with a fraction of the serving satellite’s remaining visibility.
+
+                    eta   = min(thr_next / r_max, 1.0)
+                    r_thr = np.clip((eta - k) / (1 - k), -1.0, 1.0)     # signed, NO max(0, .)
+
+                    r_ho = 0.0
+                    if ue.inter_handover_flag:
+                        early = max(0.0, 1.0 - t_lho / T_min)      # 1 right after a HO, 0 after T_min
+                        r_ho  = -(c_ho + lam_early * early)
+
+                    reward = r_thr + r_ho
 
                     rewards.append((ue_id, reward))
             if rewards:

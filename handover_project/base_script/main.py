@@ -12,7 +12,7 @@ import utils
 
 # initial configuration
 csv_folder = "csv_files"
-df_name_1 = "50km_25beams_sc9_padova_2026_07_06_00_1h.csv"
+df_name_1 = "50km_25beams_sc9_padova_2026_07_05_18_1h.csv"
 # parse parameters
 parser = argparse.ArgumentParser(description="Satellite Simulation Script")
 parser.add_argument('--df_name', type=str, default=df_name_1, help='Name of the input dataframe')
@@ -52,8 +52,9 @@ enhanced_flag = False # don't take the best satellite, but a random one among th
 dl_threshold = 0
 ul_threshold = 0
 elev_threshold = 10
-handover_timer = 40
+handover_timer = 10
 a3_event_snr_threshold = 2 # dB
+random_ho_mean = 10 # [s] mean of the exponential inter-handover time for the RANDOM handover condition
 
 ho_condition_1 = ("HTA", 0)
 sat_selection_condition_1 = "MAX_ELEVATION" 
@@ -66,7 +67,7 @@ enable_rl_algorithm = True if sat_selection_condition_1 == "HTSA" else False
 enable_rl_learning = False # if True, the RL agent will learn during the simulation, otherwise it will use a pre-trained model
 agent_type = "PPO" # RL agent type: "PPO" or "DQL"
 enable_hta = True if ho_condition_1[0] == "HTA" else False
-enable_hta_learning = True # if True, the HTA agent will learn during the simulation, otherwise it will use a pre-trained model
+enable_hta_learning = False # if True, the HTA agent will learn during the simulation, otherwise it will use a pre-trained model
 hta_type = "PPO" # HTA agent type: "PPO" or "DQL"
 rl_parameters = (w1, w2, w3, enable_rl_algorithm, enable_rl_learning, agent_type, enable_hta, enable_hta_learning, hta_type)
 
@@ -78,7 +79,7 @@ rl_parameters = (w1, w2, w3, enable_rl_algorithm, enable_rl_learning, agent_type
 # ("TIMER", handover_timer): if not already triggered, handover to a new satellite after handover_timer seconds
 # ("VISIBILITY"): standard approach, no input needed, handover when satellite goes out of visibility
 # ("A3", a3_event_snr_threshold, enhanced_flag): 3GPP Event-A3: monitor neighbouring cells, handover if one becomes better by a3_event_snr_threshold dB. if enhanced flag is true, select a random sat among the ons with higher SNR than the current one by a3_event_snr_threshold dB, otherwise select the best one.
-# TODO ("RANDOM", alpha): random handover trigger event with an exponential distribution with mean alpha seconds. This is used to test the RL algorithm, as it will learn to select the best satellite for handover when a random event occurs.
+# ("RANDOM", random_ho_mean): random handover trigger event, the time between two handovers of each UE is exponentially distributed with mean random_ho_mean seconds (rounded up to the time slot). 
 # ("HTA", 0): use HTA agent for handover triggering 
 
 ###############################################
@@ -103,7 +104,7 @@ end_sim_time = time + simTime
 # Initial connection phase: each ue connects to a random satellite
 service_sats = {}
 for cluster in clusters:    
-    cluster.initial_connection_phase(time, service_sats, handover_timer)
+    cluster.initial_connection_phase(time, service_sats, handover_timer, ho_condition_1)
 
 
 # increment the time by 100 ms
