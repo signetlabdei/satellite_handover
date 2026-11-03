@@ -515,7 +515,7 @@ class Cluster:
                         continue
                     ue_id = ue.id
                     if ue.connected_to is None:
-                        rewards.append((ue_id, 0))
+                        rewards.append((ue_id, -2))
                         continue
                     current_sat_name = ue.connected_to.name
                     current_beam_index = ue.connected_to_beam
