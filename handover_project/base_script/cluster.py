@@ -582,28 +582,19 @@ class Cluster:
                     # reward = r_thr + r_ho
 
 
-                    # V3
-                    # throughput realised in slot t+1, already degraded by Eq. 1 / queueing
+                    # V4
+                    r_max = 4
+                    T =10 # T is a usual time window in which could be a good instant where trigger handover
 
-                    c_ho      = 0.5    # fixed cost per voluntary HO (v2: 0.2)
-                    lam_early = 2.0    # weight of the early-HO penalty (v2: 1.0)
-                    T_min     = 10.0   # s, dwell time below which a HO is "early"
-                    p_early   = 2.0    # >1 -> convex: very early HOs cost much more than HOs near T_min
-                    mu_delay  = 0.0    # optional weight of the realised HO delay (0 = off)
-                    tau_max   = 1.0    # s, same as Eq. 1
-                    tau_ho = 0
+                    rt = dl_ue_throughput # current thr
+                    if(ue.inter_handover_flag):
+                        # true: we just did the handover
+                        reward = min(1,rt / r_max) - 1 / (1 + math.exp(ue.t_lho - T/2))
+                    else:
+                        # false: wer did no handover
+                        reward = min(1,rt / r_max)
 
-                    eta   = min(thr_next / r_max, 1.0)
-                    r_thr = np.clip((eta - k) / (1 - k), -1.0, 1.0)     # signed, NO max(0, .)
 
-                    r_ho    = 0.0
-                    r_delay = 0.0
-                    if ue.inter_handover_flag and not ue.forced_ho_flag:    # only voluntary HOs are penalised
-                        early   = max(0.0, 1.0 - t_lho / T_min) ** p_early  # 1 right after a HO, 0 after T_min
-                        r_ho    = -(c_ho + lam_early * early)
-                        r_delay = -mu_delay * min(tau_ho / tau_max, 1.0)    # only if tau_ho is available here
-
-                    reward = r_thr + r_ho + r_delay
 
                     rewards.append((ue_id, reward))
             if rewards:
