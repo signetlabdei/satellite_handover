@@ -560,22 +560,46 @@ class Cluster:
 
 
 
-                    # V2
+                    # # V2
+                    # # throughput realised in slot t+1, already degraded by Eq. 1 / queueing
+
+                    # c_ho = 0.2
+                    # lam_early = 1
+                    # T_min = 10 # This is the Timer 10s baseline, which the HTA should be able to match or beat. Anything shorter than that is waste, since the Visibility strategy has a median service time of ~20 s. Sweep {5, 10, 15, 20}. Going above ~20 s starts to forbid handovers that are legitimately useful. You could later replace it with a fraction of the serving satellite’s remaining visibility.
+
+                    # eta   = min(thr_next / r_max, 1.0)
+                    # r_thr = np.clip((eta - k) / (1 - k), -1.0, 1.0)     # signed, NO max(0, .)
+
+                    # r_ho = 0.0
+                    # if ue.inter_handover_flag:
+                    #     early = max(0.0, 1.0 - t_lho / T_min)      # 1 right after a HO, 0 after T_min
+                    #     r_ho  = -(c_ho + lam_early * early)
+
+                    # reward = r_thr + r_ho
+
+
+                    # V3
                     # throughput realised in slot t+1, already degraded by Eq. 1 / queueing
 
-                    c_ho = 0.2
-                    lam_early = 1
-                    T_min = 10 # This is the Timer 10s baseline, which the HTA should be able to match or beat. Anything shorter than that is waste, since the Visibility strategy has a median service time of ~20 s. Sweep {5, 10, 15, 20}. Going above ~20 s starts to forbid handovers that are legitimately useful. You could later replace it with a fraction of the serving satellite’s remaining visibility.
+                    c_ho      = 0.5    # fixed cost per voluntary HO (v2: 0.2)
+                    lam_early = 2.0    # weight of the early-HO penalty (v2: 1.0)
+                    T_min     = 10.0   # s, dwell time below which a HO is "early"
+                    p_early   = 2.0    # >1 -> convex: very early HOs cost much more than HOs near T_min
+                    mu_delay  = 0.0    # optional weight of the realised HO delay (0 = off)
+                    tau_max   = 1.0    # s, same as Eq. 1
+                    tau_ho = 0
 
                     eta   = min(thr_next / r_max, 1.0)
                     r_thr = np.clip((eta - k) / (1 - k), -1.0, 1.0)     # signed, NO max(0, .)
 
-                    r_ho = 0.0
-                    if ue.inter_handover_flag:
-                        early = max(0.0, 1.0 - t_lho / T_min)      # 1 right after a HO, 0 after T_min
-                        r_ho  = -(c_ho + lam_early * early)
+                    r_ho    = 0.0
+                    r_delay = 0.0
+                    if ue.inter_handover_flag and not ue.forced_ho_flag:    # only voluntary HOs are penalised
+                        early   = max(0.0, 1.0 - t_lho / T_min) ** p_early  # 1 right after a HO, 0 after T_min
+                        r_ho    = -(c_ho + lam_early * early)
+                        r_delay = -mu_delay * min(tau_ho / tau_max, 1.0)    # only if tau_ho is available here
 
-                    reward = r_thr + r_ho
+                    reward = r_thr + r_ho + r_delay
 
                     rewards.append((ue_id, reward))
             if rewards:
