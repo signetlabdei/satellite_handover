@@ -242,6 +242,7 @@ class Cluster:
                 curr_sat, curr_beam_index = ue.get_connection_info()
                 ue.intra_handover_flag = False
                 ue.inter_handover_flag = False
+                ue.hta_acted = False
                 next_sat = None
                 next_beam_index = None
                 event = ho_condition[0]
@@ -300,6 +301,7 @@ class Cluster:
                             num_ues = service_sats[curr_sat.name].connected_ues[ue.connected_to_beam]
                         
                             ue.inter_handover_flag = self.hta_agent.rl_algorithm_selection(t_lho, t_vis, snr, num_ues)
+                            ue.hta_acted = True
                         else:
                             ue.inter_handover_flag = True
                     else:
@@ -509,6 +511,8 @@ class Cluster:
             rewards = []
             for mini_cluster in self.list_beams:
                 for ue in mini_cluster.list_ues:
+                    if ue.hta_acted == False:
+                        continue
                     ue_id = ue.id
                     if ue.connected_to is None:
                         rewards.append((ue_id, 0))
