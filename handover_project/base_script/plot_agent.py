@@ -9,6 +9,7 @@ matplotlib.use('Agg')
 # 1. Read and process the original data
 df = pd.read_csv('HTA_agent_log.csv')
 df['learning_step'] = np.arange(len(df))
+# df["learning_step"] = df["learning_step"][:20000] // 20
 df["learning_step"] = df["learning_step"] // 20
 
 # 2. Generate the Seaborn plot

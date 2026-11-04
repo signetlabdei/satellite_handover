@@ -67,7 +67,7 @@ enable_rl_algorithm = True if sat_selection_condition_1 == "HTSA" else False
 enable_rl_learning = False # if True, the RL agent will learn during the simulation, otherwise it will use a pre-trained model
 agent_type = "PPO" # RL agent type: "PPO" or "DQL"
 enable_hta = True if ho_condition_1[0] == "HTA" else False
-enable_hta_learning = False # if True, the HTA agent will learn during the simulation, otherwise it will use a pre-trained model
+enable_hta_learning = True # if True, the HTA agent will learn during the simulation, otherwise it will use a pre-trained model
 hta_type = "PPO" # HTA agent type: "PPO" or "DQL"
 rl_parameters = (w1, w2, w3, enable_rl_algorithm, enable_rl_learning, agent_type, enable_hta, enable_hta_learning, hta_type)
 

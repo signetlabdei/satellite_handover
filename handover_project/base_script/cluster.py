@@ -293,9 +293,12 @@ class Cluster:
                     ue.t_lho = t_lho
                     if(curr_sat is not None):
                         t_vis = utils.get_visibility_time(curr_sat.name, round_time, curr_time_df) # remaining time of visibility of the current satellite
+                        ue.t_vis = t_vis # used by the V5 reward
                         
-                        if(t_vis > 0):
-                            
+                        # the agent decides only if the satellite still covers this UE's mini-cluster (index != -1);
+                        # otherwise the handover is forced and the agent is not queried (hta_acted stays False)
+                        if(t_vis > 0 and index != -1):
+
                             elevation_angle_deg = utils.get_elevation(curr_time_df, round_time, curr_sat.name, mini_cluster.position)
                             snr, _ = utils.get_noisy_snr(self.df_satellites_positions, round_time, curr_sat.name, mini_cluster.position, self.scenario, elevation_angle_deg, self.pointing)
                             num_ues = service_sats[curr_sat.name].connected_ues[ue.connected_to_beam]
@@ -583,16 +586,30 @@ class Cluster:
 
 
                     # V4
-                    r_max = 4
-                    T =10 # T is a usual time window in which could be a good instant where trigger handover
+                    # r_max = 4
+                    # T =10 # T is a usual time window in which could be a good instant where trigger handover
 
-                    rt = dl_ue_throughput # current thr
-                    if(ue.inter_handover_flag):
-                        # true: we just did the handover
-                        reward = min(1,rt / r_max) - 1 / (1 + math.exp(ue.t_lho - T/2))
-                    else:
-                        # false: wer did no handover
-                        reward = min(1,rt / r_max)
+                    # rt = dl_ue_throughput # current thr
+                    # if(ue.inter_handover_flag):
+                    #     # true: we just did the handover
+                    #     reward = min(1,rt / r_max) - 1 / (1 + math.exp(ue.t_lho - T/2))
+                    # else:
+                    #     # false: wer did no handover
+                    #     reward = min(1,rt / r_max)
+
+                    # V5
+                    r_max = 4
+                    T = 10
+                    T_VIS_MAX = 45          # s, max serving-satellite visibility
+                    C_W, C_O, C_P = 0.5, 0.3, 0.5
+
+                    reward = min(1, dl_ue_throughput / r_max)
+                    if ue.inter_handover_flag:
+                        wasted   = min(1.0, max(0.0, ue.t_vis / T_VIS_MAX))                    # coverage thrown away
+                        outage   = min(1.0, ue.remaining_handover_execution_time / 1000)      # real HO delay (queue included)
+                        pingpong = 1 / (1 + math.exp(ue.t_lho - T / 2))                       # too soon after previous HO
+                        reward  -= C_W * wasted + C_O * outage + C_P * pingpong
+
 
 
 
