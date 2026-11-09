@@ -543,75 +543,19 @@ class Cluster:
                     ul_ue_throughput *= (1 - self.scenario['3gpp_overhead_ul'])
 
 
-
-                    k = 0.25
-                    r_max = 4
-                    c_ho = 1
-                    thr_next = dl_ue_throughput        
-
-                    # V1
-                    # if(len(ue.thr_tracker) > 0):
-                    #     prev_throughput = ue.thr_tracker[-1]["dl_thr"]
-                    # else: prev_throughput = r_max
-
-                    
-                    # v_t = (prev_throughput - k*r_max)/(r_max*(1-k))
-
-                    # if(ue.inter_handover_flag):
-                    #     # true: we just did the handover
-                    #     reward = max(0, max(0, v_t) - 1/t_lho)   
-                    # else:
-                    #     # false: wer did no handover
-                    #     reward = max(0, v_t)
-
-
-
-
-                    # # V2
-                    # # throughput realised in slot t+1, already degraded by Eq. 1 / queueing
-
-                    # c_ho = 0.2
-                    # lam_early = 1
-                    # T_min = 10 # This is the Timer 10s baseline, which the HTA should be able to match or beat. Anything shorter than that is waste, since the Visibility strategy has a median service time of ~20 s. Sweep {5, 10, 15, 20}. Going above ~20 s starts to forbid handovers that are legitimately useful. You could later replace it with a fraction of the serving satellite’s remaining visibility.
-
-                    # eta   = min(thr_next / r_max, 1.0)
-                    # r_thr = np.clip((eta - k) / (1 - k), -1.0, 1.0)     # signed, NO max(0, .)
-
-                    # r_ho = 0.0
-                    # if ue.inter_handover_flag:
-                    #     early = max(0.0, 1.0 - t_lho / T_min)      # 1 right after a HO, 0 after T_min
-                    #     r_ho  = -(c_ho + lam_early * early)
-
-                    # reward = r_thr + r_ho
-
-
-                    # V4
-                    # r_max = 4
-                    # T =10 # T is a usual time window in which could be a good instant where trigger handover
-
-                    # rt = dl_ue_throughput # current thr
-                    # if(ue.inter_handover_flag):
-                    #     # true: we just did the handover
-                    #     reward = min(1,rt / r_max) - 1 / (1 + math.exp(ue.t_lho - T/2))
-                    # else:
-                    #     # false: wer did no handover
-                    #     reward = min(1,rt / r_max)
-
-                    # V5
-                    r_max = 4
-                    T = 10
-                    T_VIS_MAX = 45          # s, max serving-satellite visibility
-                    C_W, C_O, C_P = 0.5, 0.3, 0.5
-
-                    reward = min(1, dl_ue_throughput / r_max)
-                    if ue.inter_handover_flag:
-                        wasted   = min(1.0, max(0.0, ue.t_vis / T_VIS_MAX))                    # coverage thrown away
-                        outage   = min(1.0, ue.remaining_handover_execution_time / 1000)      # real HO delay (queue included)
-                        pingpong = 1 / (1 + math.exp(ue.t_lho - T / 2))                       # too soon after previous HO
-                        reward  -= C_W * wasted + C_O * outage + C_P * pingpong
-
-
-
+                    # HTA V7
+                    r_max = 4 
+                    T = 10  # T is a usual time window in which could be a good instant where trigger handover
+                    alpha = T / 2  # Controls decay speed (e.g., alpha = 5 means ~86% penalty reduction by t_lho = 10)
+                    rt = dl_ue_throughput  # current thr
+                    if(ue.inter_handover_flag):
+                        # true: we just did the handover
+                        # Exponential decay following the trend of the geometric/exponential distribution in [0, 1]
+                        ho_cost = math.exp(-ue.t_lho / alpha)
+                        reward = rt / r_max - ho_cost
+                    else:
+                        # false: we did no handover
+                        reward = rt / r_max
 
                     rewards.append((ue_id, reward))
             if rewards:
